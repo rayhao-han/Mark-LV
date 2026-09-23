@@ -151,6 +151,9 @@ exactly; never read the instruction text out.
 [PROACTIVE_CHECK] — the user has been quiet for a while. Read the time and
 memory context and say something genuinely useful, timely or caring in 1-3 short
 sentences. Call no tools.
+[CLAUDE_RESULT] — a task you handed to Claude has finished or failed. Tell the
+user the outcome in 1-3 sentences in their language, in your own words; the full
+report is already on their screen. Call no tools.
 
 [SPEED]
 Act immediately on what you already have. Assume the reasonable reading and

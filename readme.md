@@ -260,6 +260,21 @@ It is held in memory only, deliberately: writing it to disk would make a fresh l
 
 ---
 
+## 🤝 Claude Handoff
+
+For jobs Gemini can't do in one step — sorting a folder of files, real coding work, research that ends in a write-up — JARVIS can hand the task to **Claude** (Claude Code, on your own Claude plan) and keep talking while it works.
+
+* **It always asks first.** JARVIS says something like *"I'll need to call Claude for this one — want me to?"* and nothing starts until you answer. That is enforced in code, not just the prompt: the task only starts if you spoke or typed *after* JARVIS finished asking, and what runs is the task it asked about.
+* **It runs in the background.** Steps show in the activity log, the report lands in the content panel, and JARVIS tells you the outcome. "How's Claude doing?" and "stop Claude" work at any time.
+* **It is guarded.** Claude runs in Claude Code's `auto` permission mode with nobody to click "allow": a safety classifier blocks risky steps — deleting or overwriting files you didn't name, sending data out, installing packages nobody asked for — and the report says what was blocked. Claude's changes are **not** covered by JARVIS's undo.
+* **Your plan, not an API bill.** API keys and proxy settings in the environment are stripped before Claude starts.
+
+**Setup, once:** sign Claude Code in to your plan with `claude auth login`. If `claude` isn't on your PATH, JARVIS uses the copy bundled with the Claude desktop app, and the first time you ask it prints the exact command to the activity log.
+
+Optional keys in `config/api_keys.json`: `claude_path`, `claude_workdir` (default: your home folder), `claude_model` (e.g. `sonnet`, `opus`), `claude_permission_mode` (default `auto`), `claude_timeout_min` (default `20`).
+
+---
+
 ## 🗺️ Mark Roadmap
 
 | Mark | Focus |
@@ -339,6 +354,7 @@ Mark LIV/
 │   ├── game_updater.py       # Game update management (Steam / Epic)
 │   ├── code_helper.py        # Code review and generation
 │   ├── dev_agent.py          # Developer task agent
+│   ├── claude_agent.py       # Hands hard tasks to Claude Code — asks you first, runs in the background
 │   └── desktop.py            # Desktop and taskbar control
 ├── memory/
 │   ├── memory_manager.py     # Load/save long_term.json — sessions, monitors, identity
@@ -354,6 +370,7 @@ Mark LIV/
 │   ├── hotkey.py             # Push-to-talk chord — global on Windows, windowed fallback elsewhere
 │   ├── undo.py               # One shared undo stack — actions register how to reverse themselves
 │   ├── confirm.py            # Irreversible-action gate — the token is issued by the UI, not the model
+│   ├── activity.py           # Who spoke last — lets a tool check the user answered before it acts
 │   ├── audio_devices.py      # Microphone / speaker list — filtered, measured, resolved by name
 │   ├── plugin_loader.py      # Plugin engine — discovery, validation, crash isolation
 │   ├── action_loader.py      # Bundled-action engine — the built-in twin of plugin_loader

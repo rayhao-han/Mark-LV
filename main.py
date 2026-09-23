@@ -77,6 +77,7 @@ from core.plugin_loader        import discover_plugins
 from core                      import undo as undo_stack
 from core                      import confirm as confirm_gate
 from core                      import audio_devices
+from core                      import activity
 from core.action_loader        import discover_actions
 from core.echo                 import EchoGuard
 from core.viseme               import VisemeStream
@@ -107,6 +108,12 @@ CHUNK_SIZE          = 1024
 # the bars still move for a quiet talker — language- and device-independent.
 _LEVEL_FLOOR = 60.0
 _LEVEL_FULL  = 2600.0
+
+# Sustained mic level that counts as the user speaking, for core.activity. The
+# transcript says so too, but it can arrive after the model has already acted
+# on what it heard; the raw level cannot lag. ~190 ms of voice at 64 ms blocks.
+_VOICE_LEVEL  = 0.12
+_VOICE_BLOCKS = 3
 
 
 def _pcm_level(samples) -> float:
@@ -553,6 +560,7 @@ class JarvisLive:
         self._ptt_held             = False
         self._ptt                  = None    # core.hotkey.PushToTalk
         self._out_level            = 0.0     # level of the audio being played right now
+        self._voiced_blocks        = 0       # consecutive mic blocks at speech level
         self._echo                 = EchoGuard()
         # `stream.write()` returns when the buffer accepts the audio, not when the
         # speaker has finished with it, so sound is still in the room after the
@@ -837,6 +845,7 @@ class JarvisLive:
         if self._wake_enabled and not self._awake:
             self.ui.write_log("SYS: I'm asleep — say 'Hey Jarvis' or tap WAKE NOW first.")
             return
+        activity.note_user_input()
         asyncio.run_coroutine_threadsafe(
             self.session.send_client_content(
                 turns={"role": "user", "parts": [{"text": text}]},
@@ -852,6 +861,7 @@ class JarvisLive:
     def set_speaking(self, value: bool):
         with self._speaking_lock:
             self._is_speaking = value
+        activity.set_speaking(value)
         if value:
             self._tail_until = 0.0
         else:
@@ -1364,10 +1374,18 @@ class JarvisLive:
                     {"data": data, "mime_type": "audio/pcm"}
                 )
                 # Feed the live mic level to the HUD so the waveform reacts to
-                # the user's actual voice while listening. Purely cosmetic — any
-                # failure here must never disturb the mic.
+                # the user's actual voice while listening, and to core.activity
+                # once it has held long enough to be speech. Any failure here
+                # must never disturb the mic.
                 try:
-                    self.ui.set_audio_level(_pcm_level(indata))
+                    lvl = _pcm_level(indata)
+                    self.ui.set_audio_level(lvl)
+                    if lvl >= _VOICE_LEVEL:
+                        self._voiced_blocks += 1
+                        if self._voiced_blocks == _VOICE_BLOCKS:
+                            activity.note_user_input()
+                    else:
+                        self._voiced_blocks = 0
                 except Exception:
                     pass
 
@@ -1515,6 +1533,7 @@ class JarvisLive:
                             if txt:
                                 in_buf.append(txt)
                                 self._last_user_speech = time.monotonic()
+                                activity.note_user_input()
 
                         if sc.turn_complete:
                             if self._turn_done_event:
@@ -2027,6 +2046,7 @@ class JarvisLive:
                     # has no desktop WAKE button — so it wakes JARVIS if asleep.
                     if self._wake_enabled and not self._awake:
                         self.wake(reason="remote command")
+                    activity.note_user_input()
                     await self.session.send_client_content(
                         turns={"role": "user", "parts": [{"text": text}]},
                         turn_complete=True,
